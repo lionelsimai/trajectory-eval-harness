@@ -18,12 +18,14 @@ def main() -> int:
     golden = generate(20)
     good = evaluate(golden)
     broken = generate(20)
-    for traj in broken[:10]:  # regress half the trajectories
+    corrupted = broken[::2]  # regress half the trajectories: 60 of 120
+    for traj in corrupted:
         traj.hops[0].tool = "wrong_tool"
         traj.final_answer = "incorrect answer"
     bad = evaluate(broken)
     print(f"Golden:   mean={good.mean_score:.4f} pass_rate={good.pass_rate:.2%}")
-    print(f"Regressed: mean={bad.mean_score:.4f} pass_rate={bad.pass_rate:.2%}")
+    print(f"Regressed ({len(corrupted)}/{len(broken)} trajectories corrupted): "
+          f"mean={bad.mean_score:.4f} pass_rate={bad.pass_rate:.2%}")
     with tempfile.TemporaryDirectory() as tmp:
         good_path = Path(tmp) / "good.jsonl"
         bad_path = Path(tmp) / "bad.jsonl"

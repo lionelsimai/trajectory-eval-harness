@@ -12,7 +12,7 @@ import sys
 
 from .generate import generate
 from .graders import evaluate
-from .schema import dump_jsonl, load_jsonl
+from .schema import TrajectoryDataError, dump_jsonl, load_jsonl
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -32,7 +32,12 @@ def main(argv: list[str] | None = None) -> int:
         dump_jsonl(trajs, args.out)
         print(f"Wrote {len(trajs)} golden trajectories to {args.out}")
         return 0
-    report = evaluate(load_jsonl(args.data))
+    try:
+        trajs = load_jsonl(args.data)
+    except (OSError, TrajectoryDataError) as e:
+        print(f"error: cannot load trajectories: {e}", file=sys.stderr)
+        return 2
+    report = evaluate(trajs)
     print(json.dumps(report.to_dict(), indent=2))
     if args.cmd == "gate":
         if report.mean_score < args.min_score:

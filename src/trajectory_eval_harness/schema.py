@@ -78,12 +78,40 @@ class Trajectory:
         return errs
 
 
+class TrajectoryDataError(ValueError):
+    """Raised when a JSONL trajectory file is malformed or fails validation."""
+
+
 def load_jsonl(path: str | Path) -> list[Trajectory]:
-    """Load trajectories from a JSONL file."""
+    """Load trajectories from a JSONL file, validating every record.
+
+    Raises :class:`TrajectoryDataError` with the file and line number on
+    invalid JSON, a malformed record, or a ``Trajectory.validate()`` failure
+    — callers (the CLI) turn that into a clean error, never a traceback.
+    """
     out: list[Trajectory] = []
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            out.append(Trajectory.from_dict(json.loads(line)))
+    text = Path(path).read_text(encoding="utf-8")
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            raw = json.loads(line)
+        except json.JSONDecodeError as e:
+            raise TrajectoryDataError(
+                f"{path} line {lineno}: invalid JSON ({e.msg})") from e
+        if not isinstance(raw, dict):
+            raise TrajectoryDataError(
+                f"{path} line {lineno}: expected a JSON object per line")
+        try:
+            traj = Trajectory.from_dict(raw)
+        except (KeyError, TypeError, ValueError, AttributeError) as e:
+            raise TrajectoryDataError(
+                f"{path} line {lineno}: invalid trajectory record ({e})") from e
+        errors = traj.validate()
+        if errors:
+            raise TrajectoryDataError(
+                f"{path} line {lineno}: " + "; ".join(errors))
+        out.append(traj)
     return out
 
 
